@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+#
+# Legacy IDS
+#
+registerIdentity() {
+  curl -X POST \
+    http://localhost:8089/api/v1/ids \
+    -H 'Content-Type: application/json' \
+    -d "[
+	  {
+		  \"identifier\": \"$1\",
+		  \"system\": \"$3\",
+		  \"resource\": \"$2\"
+	  }
+  ]"
+}
+
+lookupIdentity() {
+  curl http://localhost:8089/api/v1/ids/$1
+}
+
+#
+# IDS V2 (Encoding IDS)
+#
+
+versionTwoIds() {
+  cd ~
+#  local ids=$(readlink -f $(find -name health-apis-ids))
+  local ids='/home/jhulbert/va/lighthouse/ids'
+#  local dq=$(readlink -f $(find -name health-apis-data-query))
+  local dq='/home/jhulbert/va/lighthouse/data-query'
+  $ids/ids-client/encoded-id \
+    -m $(find $dq -name "data-query-ids-mapping-*.jar" | head -1) \
+    $@
+}
+
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+usage() {
+cat <<EOF
+$0 <command> [options]
+--------------------
+  Commands:
+    register) register an identity in the identity service
+    lookup) lookup an identity in the identity service
+    encode) encode an identity using V2 identity service
+    decode) decode an identity using the V2 identity service
+--------------------
+  Options:
+    -i|--id) the identity to register or lookup
+    -r|--resource) the resource the identity belongs to
+    -s|--system) the system the identity belongs to
+    -p|--password) the password for the encoding/decoding using ids V2
+    -h|--help) ask politely for the help prompt
+--------------------
+  Example:
+    lookup --id 1010101010V666666
+    register --id 1010101010V666666 --resource PATIENT --system CDW
+    encode --password data-query --id 1010101010V666666 --resource PATIENT --system MVI
+    decode --password data-query --id 1010101010V666666
+--------------------
+$1
+EOF
+exit 1
+}
+
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+ARGS=$(getopt -n $(basename ${0}) \
+    -l "id:,resource:,system:,password:,help" \
+    -o "i:r:s:p:h" -- "$@")
+[ $? != 0 ] && usage
+eval set -- "$ARGS"
+while true
+do
+  case "$1" in
+    -i|--id) ID="$2";;
+    -r|--resource) RESOURCE="$2";;
+    -s|--system) SYSTEM="$2";;
+    -p|--password) PASSWORD="$2";;
+    -h|--help) usage "I can't even with this...";;
+    --) shift;break;;
+  esac
+  shift;
+done
+
+COMMAND="${1:-}"
+[ -z "$COMMAND" ] && usage "No command specified"
+shift
+
+case $COMMAND in
+  register) registerIdentity $ID $RESOURCE ${SYSTEM:-'CDW'};;
+  lookup) lookupIdentity $ID;;
+  encode) versionTwoIds -p ${PASSWORD:-'data-query'} ${SYSTEM:-'CDW'} $RESOURCE $ID;;
+  decode) versionTwoIds -p ${PASSWORD:-'data-query'} $ID;;
+  *) usage "Unknown command: $COMMAND";;
+esac

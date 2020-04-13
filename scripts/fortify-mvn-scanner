@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+set -e
+
+NOW=$(date -u +%Y%m%d%H%M)
+APP_DIR=$(pwd)
+
+usage() {
+  cat <<EOF
+$1
+  Usage:
+    WARNING: In order for scanner to work, you must be in the root directory of the project being scanned.
+
+    Options:
+      -h|--help
+      -b                        Name of the build
+      --exclude-directories     Directories within the project that should be omitted from the scan. Semicolon (;) separated.
+      --exclude-modules         Project modules that should be omitted from the scan. Semicolon (;) separated.
+
+    Examples:
+      $0 -b myExampleBuild 
+EOF
+exit 1
+}
+
+# ==================================================
+
+ARGS=$(getopt -n $(basename ${0}) \
+    -l "debug,help,exclude-directories:,exclude-modules:" \
+    -o "hb:" -- "$@")
+[ $? != 0 ] && usage
+eval set -- "$ARGS"
+while true
+do
+  case "$1" in
+    -h|--help) usage "I cant even with this...";;
+    -b) BUILD_NAME="$2";;
+    --exclude-directories) EXCLUDES="$2";;
+    --exclude-modules) BAD_MODULES="$2";;
+    --) shift;break;;
+  esac
+  shift;
+done
+
+# ==================================================
+
+[ -z "${BUILD_NAME:-}" ] && usage "Missing required param: -b"
+
+OUTPUT_FILE="$BUILD_NAME-$NOW"
+
+clean() {
+  echo -e "\nCleaning Build: $BUILD_NAME"
+  sourceanalyzer -b "$BUILD_NAME" -clean
+}
+
+findIgnoreModules() {
+  if [ -n "${BAD_MODULES:-}" ]; then
+    echo "$(echo ${BAD_MODULES} | tr ';' ' ')"
+  else
+    echo
+  fi
+}
+
+build(){
+  echo -e "\nBuilding and compiling for fortify scanning..."
+  fortifyExcludes=""
+  [ -n "$EXCLUDES" ] && fortifyExcludes+="$EXCLUDES"
+  echo "Excluding Directories: $fortifyExcludes"
+
+  local moduleExclusions=($(findIgnoreModules))
+  echo "Excluding Modules: ${moduleExclusions[@]}"
+  for module in ${moduleExclusions[@]}; do
+    [ -z $module ] && continue
+    mvnModuleExclude+=" -pl !$module"
+  done
+
+  sourceanalyzer \
+    -b "$BUILD_NAME" \
+    -source 12 \
+    -debug -logfile $APP_DIR/$OUTPUT_FILE-build.log \
+    mvn -f "$APP_DIR/pom.xml"$mvnModuleExclude \
+    com.fortify.sca.plugins.maven:sca-maven-plugin:translate \
+    -DskipTests \
+    -Dcheckstyle.skip=true \
+    -Dfortify.sca.exclude="$fortifyExcludes"
+}
+
+scan() {
+  echo -e "\nScanning to file $OUTPUT_FILE.fpr..."
+  sourceanalyzer -b "$BUILD_NAME" \
+    -debug -logfile $APP_DIR/$OUTPUT_FILE-scan.log \
+    -scan -f "$APP_DIR/$OUTPUT_FILE.fpr"
+  echo "Saving logs to $APP_DIR/$OUTPUT_FILE-scan.log..."
+}
+
+command -v fortifyupdate \
+  && fortifyupdate \
+  || echo "Can't find command: fortifyupdate... Assuming rulepacks are already up to date..."
+
+clean
+echo "====="
+build
+echo "====="
+scan
+echo "====="

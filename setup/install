@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+IT_ME=$(whoami)
+
+[ -z "$IT_ME" ] && echo "Having some trouble finding myself..." && exit 1
+
+separator() {
+  echo "============================== $1 =============================="
+}
+
+#
+# Install DBeaver
+#
+dbeaver() {
+  separator "Installing DBeaver..."
+  wget -q -P /tmp/ https://dbeaver.io/files/dbeaver-ce_latest_amd64.deb
+  sudo dpkg -i /tmp/dbeaver-ce_latest_amd64.deb
+  sudo apt-get install -f -y
+}
+
+#
+# Install Docker
+#
+docker() {
+  separator "Installing Docker..."
+  sudo apt-get install docker.io -y -q
+  sudo groupadd docker
+  sudo usermod -aG docker $IT_ME
+  newgrp docker
+}
+
+#
+# Install Atom
+#
+atom() {
+  separator "Installing Atom..."
+  wget -q -P /tmp/ https://atom.io/download/deb
+  sudo dpkg -i /tmp/deb
+  sudo apt-get install -f -y
+}
+
+#
+# Install Google Chrome
+#
+googlechrome() {
+  separator "Installing Chrome..."
+  wget -q -P /tmp/ https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+  sudo dpkg -i /tmp/google-chrome-stable_current_amd64.deb
+  sudo apt-get install -f -y
+}
+
+#
+# Install Slack
+#
+slack() {
+  separator "Installing Slack..."
+  wget -q -P /tmp/ https://downloads.slack-edge.com/linux_releases/slack-desktop-4.0.1-amd64.deb
+  sudo dpkg -i /tmp/slack-desktop-4.0.1-amd64.deb
+}
+
+# =============================================
+
+usage() {
+cat <<EOF
+==========
+  atom        Installs the latest version of Atom
+  chrome      Installs Google Chromes latest stable release
+  dbeaver     Installs the latest version of DBeaver Community Edition
+  docker      Installs the most recent version of Docker
+  slack       Installs Slack Desktop v4.0.1
+==========
+EOF
+
+exit 1
+}
+
+# =============================================
+
+sudo apt-get update -y -q
+
+case $1 in
+  atom) atom;;
+  chrome) googlechrome;;
+  dbeaver) dbeaver;;;
+  docker) docker;;
+  slack) slack;;
+  *) usage;;
+esac
+
+sudo apt-get update -y -q
+
+exit 0

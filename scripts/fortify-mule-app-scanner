@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+set -e
+
+WORKING_DIR=$(pwd)
+NOW=$(date -u +%Y%m%d%H%M)
+
+usage() {
+  cat <<EOF
+$1
+  Usage:
+    Options:
+      -h|--help     Usage Information
+      -b            The build name for the scan
+      -f            Name of the fpr (should end in .fpr file extension)
+      --exclude     Semicolon (;) separated list of exclusions
+      --filter      Filter for modules in current working dir (ex. gal)
+      --modules     An explicit semicolon (;) separated list of modules to scan
+
+    Example:
+      $0 -b fortify2020 --modules moduleOne;moduleTwo
+
+EOF
+exit 1
+}
+
+# ==================================================
+
+ARGS=$(getopt -n $(basename ${0}) \
+    -l "help,exclude:,filter:,modules:" \
+    -o "hb:f:" -- "$@")
+[ $? != 0 ] && usage
+eval set -- "$ARGS"
+while true
+do
+  case "$1" in
+    -h|--help) usage "I cant even with this...";;
+    -b) BUILD_ID="$2";;
+    -f) FPR="$2";;
+    --exclude) EXCLUDES=($(echo $2 | tr ';' ' '));;
+    --filter) MODULES=($(find $WORKING_DIR -maxdepth 1 -type d -name "$2*"));;
+    --modules) MODULES=(); for i in $(echo $2 | tr ';' ' '); do MODULES+=("$WORKING_DIR/$i"); done;;
+    --) shift;break;;
+  esac
+  shift;
+done
+
+# ==================================================
+
+[ -z "$FPR" ] && FPR="$BUILD_ID-fortify-$NOW.fpr"
+
+[ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
+[ -z "$MODULES" ] && usage "Missing required parameter: --modules"
+
+echo "Updating Rulepacks..."
+if ! fortifyupdate; then
+  echo "Couldnt update rulepacks... Continuing..."
+fi
+
+echo -e "\nCleaning Previous Build Artifacts..."
+sourceanalyzer -b $BUILD_ID -clean
+
+echo -e "\nTranslating Files..."
+echo "Modules: ${MODULES[@]}"
+
+EXCLUSIONS=""
+
+for ex in ${EXCLUDES[@]}; do
+  for module in ${MODULES[@]}; do
+    exDir="$module/$ex"
+    echo "Excluding: $exDir"
+    EXCLUSIONS+="-exclude $exDir"
+  done
+done
+
+sourceanalyzer -b $BUILD_ID \
+  -source 1.8 \
+  $EXCLUSIONS \
+  ${MODULES[@]}
+
+LOG_FILE="$BUILD_ID-fortify-$NOW-scan.log"
+
+echo -e "\nStarting Scan..."
+echo "Saving file ($FPR)..."
+sourceanalyzer -b $BUILD_ID \
+  -debug \
+  -logfile $LOG_FILE \
+  -scan \
+  -f $FPR
+
+echo "Saving logs to $LOG_FILE..."

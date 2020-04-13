@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+OLD_SCAN=${1:-}
+NEW_SCAN=${2:-}
+
+usage(){
+  cat <<EOF 
+Usage Information:
+
+  $0 <old-fortify-scan> <new-fortify-scan>
+
+  This script can be used to copy all old audit information from an old scan into a new one.
+  NOTE: Make sure to double check the audit to ensure there are no new vulnerabilites.
+
+$1
+EOF
+exit 1
+}
+
+onExit() {
+    [ -d $OLD_TEMP ] && rm -r $OLD_TEMP
+    [ -d $NEW_TEMP ] && rm -r $NEW_TEMP
+}
+
+# Set-Up
+[ -z "$OLD_SCAN" ] && usage "Missing OLD-FPR Location"
+[ -z "NEW_SCAN" ] && usage "Missing NEW-FPR Location"
+
+if ! command -v zip > /dev/null || ! command -v unzip > /dev/null; then
+  usage 'Missing `zip` or `unzip` command'
+fi
+
+# Get exact path of files
+OLD_SCAN=$(readlink -f $OLD_SCAN)
+NEW_SCAN=$(readlink -f $NEW_SCAN)
+
+OLD_TEMP=$(mktemp --directory)
+NEW_TEMP=$(mktemp --directory)
+
+trap onExit EXIT
+
+echo "Getting audit file from the old scan..."
+unzip -q -d $OLD_TEMP $OLD_SCAN
+
+[ ! -f $OLD_TEMP/audit.xml ] && echo "Couldnt find audit.xml file in old scan... Has this been audited before?" && exit 1
+
+
+echo "Moving old audit file to the new scan..."
+unzip -q -d $NEW_TEMP $NEW_SCAN
+
+mv $OLD_TEMP/audit.xml $NEW_TEMP
+
+
+TEMP_FPR=/tmp/tmp-fpr.fpr
+
+cd $NEW_TEMP
+
+zip -q -r $TEMP_FPR . 
+
+mv $TEMP_FPR $NEW_SCAN
+
+echo "Complete."

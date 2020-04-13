@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+usage() {
+  cat<<EOF
+$0 <from-tag> <to-tag>
+
+Print a change log.
+
+$1
+EOF
+  exit 1
+}
+
+FROM=$1
+TO=$2
+
+
+[ -z "$FROM" ] && usage "Missing from tag"
+[ -z "$TO" ] && usage "Missing to tag"
+git log --format=format:'COMMIT: %s%n%b' $FROM...$TO \
+  | grep -Ev '^COMMIT: (Merge branch|Next Snapshot .* - Jenkins Build|REBUILD REQUIRED)'  \
+  | sed -e 's/^ *\* \+//'  \
+  | awk '/COMMIT: Release .* - Jenkins Build/ {$1="";print;next} /COMMIT:/ {$1="";printf "-";print;next} /[a-z]/ {printf "  - ";print}'
