@@ -12,7 +12,6 @@ $1
     Options:
       -h|--help     Usage Information
       -b            The build name for the scan
-      -f            Name of the fpr (should end in .fpr file extension)
       --exclude     Semicolon (;) separated list of exclusions
       --filter      Filter for modules in current working dir (ex. gal)
       --modules     An explicit semicolon (;) separated list of modules to scan
@@ -28,7 +27,7 @@ exit 1
 
 ARGS=$(getopt -n $(basename ${0}) \
     -l "help,exclude:,filter:,modules:" \
-    -o "hb:f:" -- "$@")
+    -o "hb:" -- "$@")
 [ $? != 0 ] && usage
 eval set -- "$ARGS"
 while true
@@ -36,7 +35,6 @@ do
   case "$1" in
     -h|--help) usage "I cant even with this...";;
     -b) BUILD_ID="$2";;
-    -f) FPR="$2";;
     --exclude) EXCLUDES=($(echo $2 | tr ';' ' '));;
     --filter) MODULES=($(find $WORKING_DIR -maxdepth 1 -type d -name "$2*"));;
     --modules) MODULES=(); for i in $(echo $2 | tr ';' ' '); do MODULES+=("$WORKING_DIR/$i"); done;;
@@ -47,7 +45,8 @@ done
 
 # ==================================================
 
-[ -z "$FPR" ] && FPR="$BUILD_ID-fortify-$NOW.fpr"
+FPR="$BUILD_ID-fortify-$NOW.fpr"
+LOG_FILE="$BUILD_ID-fortify-$NOW-"
 
 [ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
 [ -z "$MODULES" ] && usage "Missing required parameter: --modules"
@@ -75,16 +74,17 @@ done
 
 sourceanalyzer -b $BUILD_ID \
   -source 1.8 \
+  -debug \
+  -logfile "$LOG_FILE-build.log" \
   ${EXCLUSIONS[@]} \
   ${MODULES[@]}
 
-LOG_FILE="$BUILD_ID-fortify-$NOW-scan.log"
 
 echo -e "\nStarting Scan..."
 echo "Saving file ($FPR)..."
 sourceanalyzer -b $BUILD_ID \
   -debug \
-  -logfile $LOG_FILE \
+  -logfile "$LOG_FILE-scan.log" \
   -scan \
   -f $FPR
 
