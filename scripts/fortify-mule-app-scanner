@@ -63,19 +63,19 @@ sourceanalyzer -b $BUILD_ID -clean
 echo -e "\nTranslating Files..."
 echo "Modules: ${MODULES[@]}"
 
-EXCLUSIONS=""
+EXCLUSIONS=()
 
 for ex in ${EXCLUDES[@]}; do
   for module in ${MODULES[@]}; do
     exDir="$module/$ex"
     echo "Excluding: $exDir"
-    EXCLUSIONS+="-exclude $exDir"
+    EXCLUSIONS+=("-exclude $exDir")
   done
 done
 
 sourceanalyzer -b $BUILD_ID \
   -source 1.8 \
-  $EXCLUSIONS \
+  ${EXCLUSIONS[@]} \
   ${MODULES[@]}
 
 LOG_FILE="$BUILD_ID-fortify-$NOW-scan.log"
