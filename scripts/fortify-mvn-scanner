@@ -67,21 +67,22 @@ build(){
   [ -n "$EXCLUDES" ] && fortifyExcludes+="$EXCLUDES"
   echo "Excluding Directories: $fortifyExcludes"
 
-  local moduleExclusions=($(findIgnoreModules))
-  echo "Excluding Modules: ${moduleExclusions[@]}"
-  for module in ${moduleExclusions[@]}; do
+  local mvnModuleExclude=()
+  for module in $(findIgnoreModules); do
     [ -z $module ] && continue
-    mvnModuleExclude+=" -pl !$module"
+    echo "Excluding Module: $module"
+    mvnModuleExclude+=("-pl !$module")
   done
 
   sourceanalyzer \
     -b "$BUILD_NAME" \
-    -source 12 \
     -debug -logfile $APP_DIR/$OUTPUT_FILE-build.log \
-    mvn -f "$APP_DIR/pom.xml"$mvnModuleExclude \
-    com.fortify.sca.plugins.maven:sca-maven-plugin:translate \
+    mvn ${mvnModuleExclude[@]} clean package \
     -DskipTests \
-    -Dcheckstyle.skip=true \
+    -Djacoco.skip \
+    -Dcheckstyle.skip \
+    -Dspotbugs.skip \
+    -Dfortify.sca.source.version=12 \
     -Dfortify.sca.exclude="$fortifyExcludes"
 }
 
