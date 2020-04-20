@@ -36,6 +36,7 @@ export EDITOR='emacs -nw'
 
 # mvn stuff
 alias mci='mvn clean install'
+alias mcp='mvn clean package'
 alias api-dev='mvn spring-boot:run -Dspring.profiles.active=dev'
 
 # git stuff

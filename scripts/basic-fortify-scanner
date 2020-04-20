@@ -2,8 +2,6 @@
 
 set -e
 
-[ ! -f pom.xml ] && echo "Wait... this isnt a maven project..." && exit 1
-
 WORKING_DIR=$(pwd)
 NOW=$(date -u +%Y%m%d%H%M)
 
@@ -16,8 +14,8 @@ $1
                             (NOTE: This does not turn on debug ouput for the script itself, just fortify)
       -h|--help             Usage Information
       -b                    The build name for the scan
-      --exclude-dirs        Semicolon (;) separated list of exclusions
-      --exclude-modules     An explicit semicolon (;) separated list of modules to scan
+      --exclude-dirs        Semicolon (;) separated list of directories to exclude from the scan
+      --exclude-modules     Semicolon (;) separated list of modules to exclude from the scan
 
     Example:
       $0 -b fortify2020 --exclude-dirs /src/test;/target --exclude-modules moduleOne;moduleTwo
@@ -138,6 +136,8 @@ scanFortifyBuild() {
 }
 
 # ==================================================
+
+[ ! -f pom.xml ] && echo "Wait... this isnt a maven project..." && exit 1
 
 [ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
 

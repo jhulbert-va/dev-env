@@ -10,14 +10,15 @@ usage() {
 $1
   Usage:
     Options:
+      --debug       Turns on debug mode for the fortify scans and outputs logs to files
       -h|--help     Usage Information
       -b            The build name for the scan
       --exclude     Semicolon (;) separated list of exclusions
-      --filter      Filter for modules in current working dir (ex. gal)
+      --filter      Filter for module selection in current working dir (ex. gal)
       --modules     An explicit semicolon (;) separated list of modules to scan
 
     Example:
-      $0 -b fortify2020 --modules moduleOne;moduleTwo
+      $0 -b fortify2020 --modules moduleOne;moduleTwo --exclude src/test;target
 
 EOF
 exit 1
@@ -26,13 +27,14 @@ exit 1
 # ==================================================
 
 ARGS=$(getopt -n $(basename ${0}) \
-    -l "help,exclude:,filter:,modules:" \
+    -l "help,debug,exclude:,filter:,modules:" \
     -o "hb:" -- "$@")
 [ $? != 0 ] && usage
 eval set -- "$ARGS"
 while true
 do
   case "$1" in
+    debug) DEBUG=true;;
     -h|--help) usage "I cant even with this...";;
     -b) BUILD_ID="$2";;
     --exclude) EXCLUDES=($(echo $2 | tr ';' ' '));;
@@ -45,8 +47,8 @@ done
 
 # ==================================================
 
-FPR="$BUILD_ID-fortify-$NOW.fpr"
-LOG_FILE="$BUILD_ID-fortify-$NOW-"
+FILENAME="$BUILD_ID-fortify-$NOW"
+FPR="$FILENAME.fpr"
 
 [ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
 [ -z "$MODULES" ] && usage "Missing required parameter: --modules"
@@ -65,6 +67,7 @@ echo "Modules: ${MODULES[@]}"
 EXCLUSIONS=()
 
 for ex in ${EXCLUDES[@]}; do
+  [[ "$ex" =~ ^/.* ]] && ex=${ex:1}
   for module in ${MODULES[@]}; do
     exDir="$module/$ex"
     echo "Excluding: $exDir"
@@ -72,19 +75,28 @@ for ex in ${EXCLUDES[@]}; do
   done
 done
 
+if [ "${DEBUG:-false}" == "true" ]; then
+  logfile="$FILENAME-build.log"
+  echo "Saving logfile: $logfile"
+  debugOp="-debug -logfile $logfile"
+fi
+
 sourceanalyzer -b $BUILD_ID \
   -source 1.8 \
-  -debug \
-  -logfile "$LOG_FILE-build.log" \
+  ${debugOp:-} \
   ${EXCLUSIONS[@]} \
   ${MODULES[@]}
 
+if [ "${DEBUG:-false}" == "true" ]; then
+  logfile="$FILENAME-scan.log"
+  echo "Saving logfile: $logfile"
+  debugOp="-debug -logfile $logfile"
+fi
 
 echo -e "\nStarting Scan..."
 echo "Saving file ($FPR)..."
 sourceanalyzer -b $BUILD_ID \
-  -debug \
-  -logfile "$LOG_FILE-scan.log" \
+  ${debugOp:-} \
   -scan \
   -f $FPR
 
