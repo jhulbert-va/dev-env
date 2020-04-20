@@ -87,17 +87,17 @@ sourceanalyzer -b $BUILD_ID \
   ${EXCLUSIONS[@]} \
   ${MODULES[@]}
 
+
+echo -e "\nStarting Scan..."
+
 if [ "${DEBUG:-false}" == "true" ]; then
   logfile="$FILENAME-scan.log"
   echo "Saving logfile: $logfile"
   debugOp="-debug -logfile $logfile"
 fi
 
-echo -e "\nStarting Scan..."
 echo "Saving file ($FPR)..."
 sourceanalyzer -b $BUILD_ID \
   ${debugOp:-} \
   -scan \
   -f $FPR
-
-echo "Saving logs to $LOG_FILE..."
