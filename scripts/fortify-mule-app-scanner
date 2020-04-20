@@ -34,7 +34,7 @@ eval set -- "$ARGS"
 while true
 do
   case "$1" in
-    debug) DEBUG=true;;
+    --debug) DEBUG=true;;
     -h|--help) usage "I cant even with this...";;
     -b) BUILD_ID="$2";;
     --exclude) EXCLUDES=($(echo $2 | tr ';' ' '));;
