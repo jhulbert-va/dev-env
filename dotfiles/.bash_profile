@@ -8,6 +8,11 @@ then
 fi
 
 #
+# Set-Up SSH Agent
+#
+eval $(ssh-agent) > /dev/null
+
+#
 # Temp Dir
 #
 export TMP="/tmp"
@@ -25,19 +30,19 @@ fi
 #
 # User Vars
 #
-export VA_GITHUB_USER='jhulbert-va'
-export NEXUS_USERNAME='jhulbert-va'
-export LIGHTHOUSE_TOKEN=$MTOKEN
 export EDITOR='emacs -nw'
+export LIGHTHOUSE_TOKEN=$MTOKEN
+export NEXUS_USERNAME='jhulbert-va'
+export VA_GITHUB_USER='jhulbert-va'
 
 #
 # Aliases
 #
 
 # mvn stuff
+alias api-dev='mvn spring-boot:run -Dspring.profiles.active=dev'
 alias mci='mvn clean install'
 alias mcp='mvn clean package'
-alias api-dev='mvn spring-boot:run -Dspring.profiles.active=dev'
 
 # git stuff
 alias git-master='pull-default'
@@ -53,13 +58,12 @@ git config --global alias.unstage 'reset HEAD --'
 git config --global alias.update 'pull --rebase origin master'
 
 # misc
-alias please='sudo'
-alias gnight='sudo shutdown now'
-alias open='xdg-open'
-alias start='eval $(ssh-agent) && ssh-add ~/.ssh/github'
-alias startup='start'
 alias du-decrypt='docker run --rm -v $(pwd):/du vasdvp/deployer-toolkit:latest decrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
 alias du-encrypt='docker run --rm -v $(pwd):/du vasdvp/deployer-toolkit:latest encrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
-alias emacs='emacs -nw'
 alias e='emacs -nw'
-alias n='nano'
+alias github='ssh-add ~/.ssh/github'
+alias gnight='sudo shutdown now'
+alias open='xdg-open'
+alias please='sudo'
+alias socks='ssh-add ~/.ssh/id_rsa_vetsgov; ssh socks -D 2001 -N &'
+alias start='ssh-add ~/.ssh/id_rsa'
