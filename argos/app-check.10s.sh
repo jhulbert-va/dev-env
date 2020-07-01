@@ -35,11 +35,11 @@ javaApp "facilities-mock-services" m $(lsof -ti tcp:8666 -s tcp:listen)
 # Fall-Risk
 javaApp "fall-risk" "NOPE" $(lsof -ti tcp:8070 -s tcp:listen)
 # Kong
-docker container "kong" $(docker ps -f publish=8443/tcp -q)
+dockerContainer "kong" $(docker ps -f publish=8443/tcp -q)
 
 [ "$(wc -l $APP_INFO | cut -d ' ' -f1)" == "0" ] && echo "-|trim=false" && exit 0
 
-echo ":cd:"
+echo ":rainbow:"
 echo "---"
 cat $APP_INFO
 
