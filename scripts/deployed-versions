@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# Setup
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+JENKINS_URL="https://tools.health.dev-developer.va.gov/jenkins/job/department-of-veterans-affairs"
+
+declare -A ENVS
+
+ENVS[0]=qa
+ENVS[1]=uat
+ENVS[2]=staging
+ENVS[3]=production
+ENVS[4]=staging_lab
+ENVS[5]=lab
+
+typeset -a DATES
+typeset -a APP_VERSION
+typeset -a DU_VERSION
+typeset -a TEST
+typeset -a OK
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# Usage
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+usage() {
+  cat <<EOF
+  Usage:
+    -h|--help     Brings you to this menu
+    -a|--app      App to get versions for
+
+  Example:
+    $0 -a my-app -a your-app
+EOF
+exit 1
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# Functions
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+fail() {
+  echo "$1"
+  exit 1
+}
+
+forEachEnv() {
+  for env in ${!ENVS[@]}; do
+    ENVIRONMENT="${ENVS[$env]}"
+    [ "${HAS_UAT:-false}" == "false" ] && [ "$ENVIRONMENT" == "uat" ] && continue
+    if [ "${SKIP_PRODUCTION_PATH:-false}" == "true" ]; then
+      if [ "$ENVIRONMENT" == "staging" ] || [ "$ENVIRONMENT" == "production" ]; then
+        continue;
+      fi
+    fi
+    if [ "${SKIP_LAB_PATH:-false}" == "true" ]; then
+      if [ "$ENVIRONMENT" == "staging_lab" ] || [ "$ENVIRONMENT" == "lab" ]; then
+        continue;
+      fi
+    fi
+
+    $@
+  done
+}
+
+pullDeployerStatusArtifact() {
+  [ -z "$JENKINS_USERNAME_PASSWORD" ] && fail "Missing var:  JENKINS_USERNAME_PASSWORD"
+  STATUS=$(curl -s -w "${http_code}" \
+    -o "/tmp/lighthouse-$ENVIRONMENT.status" \
+    --user $JENKINS_USERNAME_PASSWORD \
+    "$JENKINS_URL/job/health-apis-deployer/job/${ENVIRONMENT}/lastSuccessfulBuild/artifact/status.us-gov-west-1a.json")
+
+  if [ "$STATUS" != "200" ]; then
+    curl -s -o "/tmp/lighthouse-$ENVIRONMENT.status" \
+      --user $JENKINS_USERNAME_PASSWORD \
+      "$JENKINS_URL/job/health-apis-deployer/job/${ENVIRONMENT}/lastSuccessfulBuild/artifact/status.us-gov-west-1b.json"
+  fi
+}
+
+saveAppData() {
+  local appName="$1"
+  OK[$env]=true
+  METADATA=($(jq -r ".[] | select(.[\"deployment-unit\"] == \"$appName\")| .[\"deployment-date\"], .[\"deployment-app-version\"], .[\"deployment-unit-version\"], .[\"deployment-test-status\"] " /tmp/lighthouse-$ENVIRONMENT.status 2> /dev/null))
+  DATES[$env]="${METADATA[0]:-unknown}"
+  APP_VERSION[$env]="${METADATA[1]:-unknown}"
+  DU_VERSION[$env]="${METADATA[2]:-unknown}"
+  TEST[$env]="${METADATA[3]:-unknown}"
+
+  # Is App in uat?
+  [ "$ENVIRONMENT" == "uat" ] \
+    && [ "${APP_VERSION[$env]}" == "unknown" ] \
+    && [ "${DU_VERSION[$env]}" == "unknown" ] \
+    && HAS_UAT="false"
+}
+
+isBehind() {
+  local lower=$1
+  local upper=$2
+  [ "${DU_VERSION[$lower]}" != "${DU_VERSION[$upper]}" ] \
+    && OK[$lower]=false \
+    && let NUMBER_BEHIND+=1
+}
+
+isAppBehind() {
+  NUMBER_BEHIND=0
+
+  # qa | uat | staging | production | staging_lab | lab |
+  #  0 |  1  |    2    |     3      |      4      |  5  |
+
+  if [ "${HAS_UAT}" == "true" ]; then
+    isBehind 1 0
+    isBehind 2 1
+  else
+    isBehind 2 0
+  fi
+  
+  isBehind 3 2
+
+  isBehind 4 0
+  isBehind 5 4
+  
+  ALL_UP_TO_DATE=true
+  ALL_PASSED=true
+  UP_TO_DATE_MESSAGE=
+  PASSED_MESSAGE=
+  NUMBER_OF_FAILURES=0
+}
+
+determineResults() {
+  if [ "${OK[$env]}" != true ]
+  then
+    ALL_UP_TO_DATE=false
+    [ -n "$UP_TO_DATE_MESSAGE" ] && UP_TO_DATE_MESSAGE+=", "
+    UP_TO_DATE_MESSAGE+="${ENVS[$env]}"
+  fi  
+  if [ "${TEST[$env]}" != PASSED ]
+  then
+    let NUMBER_OF_FAILURES+=1
+    ALL_PASSED=false
+    [ -n "$PASSED_MESSAGE" ] && PASSED_MESSAGE+=", "
+    PASSED_MESSAGE+="${ENVS[$env]}"
+  fi
+}
+
+printDetailsForEnv() {
+  local pad
+    
+  # Pad so everything lines up (dropdowns dont like fonts, colors, etc.)
+  case "${ENVS[$env]}" in
+    qa) pad='  .  .  .  .  .  .  .  .  .  ';;
+    uat) pad='   .  .  .  .  .  .  .  .  ';;
+    staging) pad=' .  .  .  .  .  .  ';;
+    production) pad='   .  .  .  ';;
+    staging_lab) pad='  .  .  .  ';;
+    lab) pad=' .  .  .  .  .  .  .  .  .  ';;
+    *) pad="";;
+  esac
+
+  echo -n "--"
+  printf "%s %s ( %s ) \t [ %s ] \t %s\n" \
+    "${ENVS[$env]}$pad" \
+    ${DU_VERSION[$env]} \
+    ${APP_VERSION[$env]} \
+    ${TEST[$env]} \
+    ${DATES[$env]}         
+}
+
+doTheThing() {
+  DETAIL_APP="$1"
+  SKIP_PRODUCTION_PATH="false"
+  SKIP_LAB_PATH="false"
+  
+  forEachEnv "saveAppData $DETAIL_APP"
+
+  if [ "${DU_VERSION[2]}" == "unknown" ] && [ "${DU_VERSION[3]}" == "unknown" ]; then
+    SKIP_PRODUCTION_PATH="true"
+  fi
+  
+  if [ "${DU_VERSION[4]}" == "unknown" ] && [ "${DU_VERSION[5]}" == "unknown" ]; then
+    SKIP_LAB_PATH="true"
+  fi
+  
+  isAppBehind
+
+  forEachEnv determineResults
+
+  if [ $ALL_PASSED == false ]
+  then
+    # FireBrick #B22222
+    message="$DETAIL_APP: TEST FAILURES [ $(echo $PASSED_MESSAGE | sed 's/\(.*\), \(.*\)/\1 and \2/') ] | color=#B22222"
+  elif [ $ALL_UP_TO_DATE == false ]
+  then
+    message="$DETAIL_APP: BEHIND [ $UP_TO_DATE_MESSAGE ] | color=yellow"
+  else
+    message="$DETAIL_APP: OK | color=green"
+  fi
+
+  echo "$message"
+
+  forEachEnv "printDetailsForEnv"
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# The Goods
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+APPS=()
+
+ARGS=$(getopt -n $(basename ${0}) -l "help,app:" -o "ha:" -- "$@")
+[ $? != 0 ] && usage
+eval set -- "$ARGS"
+while true; do 
+  case "$1" in
+    -h|--help) usage "I cant even with this...";;
+    -a|--app) APPS+=("$2");;
+    --) shift;break;;
+  esac
+  shift;
+done
+
+forEachEnv pullDeployerStatusArtifact
+
+for app in ${APPS[@]}; do
+  doTheThing "$app"
+done

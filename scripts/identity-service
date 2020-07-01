@@ -31,7 +31,7 @@ versionTwoIds() {
 #  local ids=$(readlink -f $(find -name health-apis-ids))
   local ids='/home/jhulbert/va/lighthouse/ids'
 #  local dq=$(readlink -f $(find -name health-apis-data-query))
-  local dq='/home/jhulbert/va/lighthouse/data-query'
+  local dq='/home/jhulbert/va/lighthouse/health-apis-data-query'
   $ids/ids-client/encoded-id \
     -m $(find $dq -name "data-query-ids-mapping-*.jar" | head -1) \
     $@
