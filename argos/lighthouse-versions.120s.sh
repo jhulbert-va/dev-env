@@ -12,11 +12,8 @@ trap onExit EXIT
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 
 deployed-versions \
-  -a community-care \
   -a data-query \
-  -a facilities \
   -a fall-risk \
-  -a urgent-care \
   >> $VERSIONS
 
 FAIL_COUNT=$(awk '/^[a-z-]*:.*/ {print $0}' $VERSIONS \

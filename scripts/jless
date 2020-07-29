@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
-[ ! -f "$1" ] && echo "Can't find file" && exit 1
+if [ -p /dev/stdin ]; then
+  cat | jq . | less
+elif [ -n "$1" ]; then
+  [ ! -f "$1" ] && echo "File Not Found!" && exit 1
+  cat $1 | jq . | less
+else
+  echo "No Input!"
+  exit 1
+fi
 
-cat $1 | jq . | less
+exit 0
