@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 if [ -p /dev/stdin ]; then
-  cat | jq . | less
+  cat | jq -C . | less -r
 elif [ -n "$1" ]; then
   [ ! -f "$1" ] && echo "File Not Found!" && exit 1
-  cat $1 | jq . | less
+  cat $1 | jq -C . | less -r
 else
   echo "No Input!"
   exit 1
