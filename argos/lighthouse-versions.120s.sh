@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-ICONS="$(dirname $(readlink -f $0))/icons"
-MEH="$(base64 -w 0 $ICONS/blue-target.ico)"
-FAIL="$(base64 -w 0 $ICONS/red-target.ico)"
+MEH=":radio_button:"
+FAIL=":red_circle:"
 
 VERSIONS=$(mktemp "/tmp/versions.argosXXX")
 
@@ -13,16 +12,15 @@ trap onExit EXIT
 
 deployed-versions \
   -a data-query \
-  -a fall-risk \
   >> $VERSIONS
 
 FAIL_COUNT=$(awk '/^[a-z-]*:.*/ {print $0}' $VERSIONS \
                  | grep -c -i 'test failures')
 
 if [ "$FAIL_COUNT" != 0 ]; then
-  echo "| image='$FAIL' imageWidth=21"
+  echo "$FAIL"
 else
-  echo "| image='$MEH' imageWidth=21"
+  echo "$MEH"
 fi
 echo "---"
 cat $VERSIONS
