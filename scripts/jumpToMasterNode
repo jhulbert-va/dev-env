@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+DEV_KEYPAIR="~/.ssh/DevToolsKeyPair.pem"
+DEPLOYER_JENKINS_URL='https://tools.health.dev-developer.va.gov/jenkins/job/department-of-veterans-affairs/job/health-apis-deployer'
+
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+usage() {
+  cat <<EOF
+  Usage: $0 <environment> <availability-zone>
+
+${1:-}
+EOF
+exit 1
+}
+
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+main() {
+  init
+    
+  local env=${1:-}
+  local az=${2:-}
+  [ -z "${env}" -o -z "${az}" ] && usage "environment and availability-zone required."
+
+  local user="ec2-user"
+  local ipAddr=$(getIp "${env}" "${az}")
+
+  echo "Jumping to ${user}@${ipAddr}"
+  
+  ssh -i "${DEV_KEYPAIR}" "${user}@${ipAddr}"
+}
+
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+getIp() {
+  local env="${1:-}"
+  local az="${2:-}"
+  local buildUrl="${DEPLOYER_JENKINS_URL}/job/${env}/lastSuccessfulBuild/consoleText"
+
+  local ip=$(curl -su "${JENKINS_USERNAME_PASSWORD}" "${buildUrl}" \
+               | grep -E -o "us-gov-west-1${az} [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" \
+               | head -n +1 \
+               | awk '{print $2}')
+
+  echo "${ip}"
+}
+
+init() {
+  [ ! -f "$DEV_KEYPAIR" ] && usage "Cant find DevToolsKeyPair..."
+  [ -z "$JENKINS_USERNAME_PASSWORD" ] && usage "JENKINS_USERNAME_PASSWORD is required..."
+}
+
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+[[ "${1:-}" =~ ^([-]+)?h(elp)?$ ]] && usage "Just don't. Don't even. I can't."
+
+main $@
