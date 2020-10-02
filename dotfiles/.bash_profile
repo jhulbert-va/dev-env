@@ -1,74 +1,86 @@
+#=~=~=~=~=~=~=~=~= .bash_profile =~=~=~=~=~=~=~=~=~
 
-#
-# Source .bash_secrets when exists
-#
-if [ -f ~/.bash_secrets ]
-then
-  . ~/.bash_secrets
-fi
+main() {
+  dev-env
+  git-alias
+  maven-alias
+  misc
+  terminal-tweaks
+  user-vars
+}
 
-#
-# Set-Up SSH Agent
-#
-eval $(ssh-agent) > /dev/null
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 
-#
-# Temp Dir
-#
-export TMP="/tmp"
-export TMPDIR="$TMP"
+deployer-toolkit() {
+  local deployer=$(find ~/va -name 'health-apis-deployer')
+  local toolkitScript="${deployer}/toolkit/dtk"
+  echo "${toolkitScript}"
+}
 
-#
-# Terminal Tweaks
-#
-if [ "$(uname)" == "Linux" ]; then
-  export PS1='\[\e]0;${debian_chroot:+($debian_chroot)}\w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;34m\][\w]\[\033[01;32m\]$(__git_ps1 " (%s)")\[\033[00m\]\n\$ '
-else
-  export PS1='\[\033[01;32m\]\u \[\033[00m\]\[\e]0;${debian_chroot:+($debian_chroot)}\w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;34m\][\w]\[\033[00m\]\n\$ '
-fi
+dev-env() {
+  # Source .bash_secrets when exists
+  if [ -f ~/.bash_secrets ]
+  then
+    . ~/.bash_secrets
+  fi
 
-#
-# User Vars
-#
-export EDITOR='emacs -nw'
-export LIGHTHOUSE_TOKEN=$MTOKEN
-export NEXUS_USERNAME='jhulbert-va'
-export VA_GITHUB_USER='jhulbert-va'
+  # Set-Up SSH Agent
+  eval $(ssh-agent) > /dev/null
 
-#
-# Aliases
-#
+  # Temp Dir
+  export TMP="/tmp"
+  export TMPDIR="$TMP"
+}
 
-# mvn stuff
-alias api-dev='mvn spring-boot:run -Dspring.profiles.active=dev'
-alias mci='mvn clean install'
-alias mcp='mvn clean package'
+git-alias() {
+  alias git-master='pull-default'
+  git config --global alias.alias '! git config --get-regexp ^alias\.'
+  git config --global alias.all 'commit -am'
+  git config --global alias.br 'branch'
+  git config --global alias.co 'checkout'
+  git config --global alias.default '!git symbolic-ref refs/remotes/origin/HEAD | sed "s@^refs/remotes/origin/@@" | paste -sd ""'
+  git config --global alias.home '!git checkout $(git default) && git pull'
+  git config --global alias.nah '!git reset --hard && git clean -df'
+  git config --global alias.master '!git home'
+  git config --global alias.po 'push origin'
+  git config --global alias.shove 'push --force'
+  git config --global alias.st 'status'
+  git config --global alias.trim '!git home && git branch -D $(git branch | grep -v $(git default))'
+  git config --global alias.unstage 'reset HEAD --'
+  git config --global alias.update 'pull --rebase origin master'
+}
 
-# git stuff
-alias git-master='pull-default'
-git config --global alias.alias '! git config --get-regexp ^alias\.'
-git config --global alias.all 'commit -am'
-git config --global alias.br 'branch'
-git config --global alias.co 'checkout'
-git config --global alias.default '!git symbolic-ref refs/remotes/origin/HEAD | sed "s@^refs/remotes/origin/@@" | paste -sd ""'
-git config --global alias.home '!git checkout $(git default) && git pull'
-git config --global alias.nah '!git reset --hard && git clean -df'
-git config --global alias.master '!git home'
-git config --global alias.po 'push origin'
-git config --global alias.shove 'push --force'
-git config --global alias.st 'status'
-git config --global alias.trim '!git home && git branch -D $(git branch | grep -v $(git default))'
-git config --global alias.unstage 'reset HEAD --'
-git config --global alias.update 'pull --rebase origin master'
+maven-alias() {
+  alias api-dev='mvn spring-boot:run -Dspring.profiles.active=dev'
+  alias mci='mvn clean install'
+  alias mcp='mvn clean package'
+}
 
-# misc
-alias du-decrypt='docker run --rm -v $(pwd):/du vasdvp/deployer-toolkit:latest decrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
-alias du-encrypt='docker run --rm -v $(pwd):/du vasdvp/deployer-toolkit:latest encrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
-alias cd..='cd ..'
-alias e='emacs -nw'
-alias github='ssh-add ~/.ssh/github'
-alias bye-felicia='shutdown now'
-alias open='xdg-open'
-alias please='sudo'
-alias socks='ssh-add ~/.ssh/id_rsa_vetsgov; ssh socks -D 2001 -N &'
-alias start='ssh-add ~/.ssh/id_rsa'
+misc() {
+  alias du-decrypt='$(deployer-toolkit) decrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
+  alias du-encrypt='$(deployer-toolkit) encrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
+  alias cd..='cd ..'
+  alias e='emacs -nw'
+  alias github='ssh-add ~/.ssh/github'
+  alias bye-felicia='shutdown now'
+  alias open='xdg-open'
+  alias please='sudo'
+  alias socks='ssh-add ~/.ssh/id_rsa_vetsgov; ssh socks -D 2001 -N &'
+  alias start='ssh-add ~/.ssh/id_rsa'
+}
+
+terminal-tweaks() {
+  if [ "$(uname)" == "Linux" ]; then
+    export PS1='\[\e]0;${debian_chroot:+($debian_chroot)}\w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;34m\][\w]\[\033[01;32m\]$(__git_ps1 " (%s)")\[\033[00m\]\n\$ '
+  else
+    export PS1='\[\033[01;32m\]\u \[\033[00m\]\[\e]0;${debian_chroot:+($debian_chroot)}\w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;34m\][\w]\[\033[00m\]\n\$ '
+  fi
+}
+
+user-vars() {
+  export EDITOR='emacs -nw'
+}
+
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+main
