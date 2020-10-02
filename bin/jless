@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
 if [ -p /dev/stdin ]; then
   cat | jq -C . | less -r
 elif [ -n "$1" ]; then

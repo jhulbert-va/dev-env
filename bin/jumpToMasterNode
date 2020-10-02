@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-DEV_KEYPAIR="~/.ssh/DevToolsKeyPair.pem"
-DEPLOYER_JENKINS_URL='https://tools.health.dev-developer.va.gov/jenkins/job/department-of-veterans-affairs/job/health-apis-deployer'
-
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# jumpToMasterNode
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 
 usage() {
   cat <<EOF
-  Usage: $0 <environment> <availability-zone>
+Usage: 
+  $0 <environment> <availability-zone>
 
 ${1:-}
 EOF
@@ -15,6 +15,13 @@ exit 1
 }
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+
+init() {
+  DEV_KEYPAIR="~/.ssh/DevToolsKeyPair.pem"
+  DEPLOYER_JENKINS_URL='https://tools.health.dev-developer.va.gov/jenkins/job/department-of-veterans-affairs/job/health-apis-deployer'
+  [ ! -f "$DEV_KEYPAIR" ] && usage "Cant find DevToolsKeyPair..."
+  [ -z "$JENKINS_USERNAME_PASSWORD" ] && usage "JENKINS_USERNAME_PASSWORD is required..."
+}
 
 main() {
   init
@@ -44,11 +51,6 @@ getIp() {
                | awk '{print $2}')
 
   echo "${ip}"
-}
-
-init() {
-  [ ! -f "$DEV_KEYPAIR" ] && usage "Cant find DevToolsKeyPair..."
-  [ -z "$JENKINS_USERNAME_PASSWORD" ] && usage "JENKINS_USERNAME_PASSWORD is required..."
 }
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
