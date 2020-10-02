@@ -1,67 +1,80 @@
 #!/usr/bin/env bash
 
-# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+# identity-service
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 usage() {
 cat <<EOF
-$0 <command> [options]
---------------------
+Usage:
+  $0 <command> [options]
+
   Commands:
-    register) register an identity in the identity service
-    lookup) lookup an identity in the identity service
+    register) [DEPRECATED] register an identity in the v1 identity service
+    lookup) [DEPRECATED] lookup an identity in the v1 identity service
     encode) encode an identity using V2 identity service
     decode) decode an identity using the V2 identity service
---------------------
+
   Options:
+    --debug) Turn on debug logging
     -i|--id) the identity to register or lookup
     -r|--resource) the resource the identity belongs to
     -s|--system) the system the identity belongs to
     -p|--password) the password for the encoding/decoding using ids V2
-    -h|--help) ask politely for the help prompt
---------------------
-  Example:
+    -h|--help) display usage information
+
+  Example(s):
     lookup --id 1010101010V666666
     register --id 1010101010V666666 --resource PATIENT --system CDW
     encode --password data-query --id 1010101010V666666 --resource PATIENT --system MVI
     decode --password data-query --id 1010101010V666666
---------------------
+
 $1
 EOF
 exit 1
 }
 
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+init() {
+  [ -z "${SHANKTOPUS_WORKSPACE:-}" ] && SHANKTOPUS_WORKSPACE="$(readlink -f ~/va)"
+}
+
 main() {
+  init
+
   ARGS=$(getopt -n $(basename ${0}) \
-                -l "id:,resource:,system:,password:,help" \
+                -l "debug,id:,resource:,system:,password:,help" \
                 -o "i:r:s:p:h" -- "$@")
   [ $? != 0 ] && usage
   eval set -- "$ARGS"
   while true
   do
     case "$1" in
+      --debug) set -x;;
       -i|--id) ID="$2";;
       -r|--resource) RESOURCE="$2";;
       -s|--system) SYSTEM="$2";;
       -p|--password) PASSWORD="$2";;
-      -h|--help) usage "I can't even with this...";;
+      -h|--help) usage "Just don't. Don't even. I can't.";;
       --) shift;break;;
     esac
     shift;
   done
 
   COMMAND="${1:-}"
-  [ -z "$COMMAND" ] && usage "No command specified"
+  [ -z "$COMMAND" ] && usage "No command specified."
   shift
   case $COMMAND in
-    register) registerIdentity $ID $RESOURCE ${SYSTEM:-'CDW'};;
-    lookup) lookupIdentity $ID;;
-    encode) versionTwoIds -p ${PASSWORD:-'data-query'} ${SYSTEM:-'CDW'} $RESOURCE $ID;;
-    decode) versionTwoIds -p ${PASSWORD:-'data-query'} $ID;;
+    register) registerIdentity ${ID} ${RESOURCE} ${SYSTEM:-'CDW'};;
+    lookup) lookupIdentity ${ID};;
+    encode) versionTwoIds -p ${PASSWORD} ${SYSTEM:-'CDW'} ${RESOURCE} ${ID};;
+    decode) versionTwoIds -p ${PASSWORD} ${ID};;
     *) usage "Unknown command: $COMMAND";;
   esac
 }
 
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 #
 # Legacy IDS
@@ -83,18 +96,18 @@ lookupIdentity() {
   curl http://localhost:8089/api/v1/ids/$1
 }
 
+
 #
 # IDS V2 (Encoding IDS)
 #
-
 versionTwoIds() {
-  local ids=$(readlink -f $(find ~ -name health-apis-ids))
-  local dq=$(readlink -f $(find ~ -name health-apis-data-query))
+  local ids=$(readlink -f $(find ${SHANKTOPUS_WORKSPACE} -name health-apis-ids))
+  local dq=$(readlink -f $(find ${SHANKTOPUS_WORKSPACE} -name health-apis-data-query))
   $ids/ids-client/encoded-id \
     -m $(find $dq -name "data-query-ids-mapping-*.jar" | head -1) \
     $@
 }
 
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 main $@
