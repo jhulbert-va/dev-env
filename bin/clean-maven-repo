@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+main() {
+  cleanSnapshots
+  cleanOldVersions
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+cleanSnapshots() {
+  find ~/.m2/repository/ -type d -name "*-SNAPSHOT" -exec rm -r {} +
+}
+
+cleanOldVersions() {
+  find ~/.m2/repository/ -type d -atime +30 -exec rm -r {} +
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+main
