@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+# Create PR's and link the VAJira Tasks
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+local currentBranch="$(git branch | grep '*' | awk '{ print $2 }')"
+local task=$(echo "${currentBranch}" | sed 's/.*\(API-[0-9]*\).*/\1/')
+
+gh pr create \
+  -t "${currentBranch}" \
+  -b "# [${task}](https://vajira.max.gov/browse/${task})\n$@"
