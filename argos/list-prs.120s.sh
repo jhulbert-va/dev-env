@@ -71,7 +71,7 @@ printf "Pull-Requests: $COUNT"
 
 case "$COUNT" in
   [01234]) echo "";;
-  *) echo "|color=orange";;
+  *) echo "|color=red";;
 esac
 
 echo ---

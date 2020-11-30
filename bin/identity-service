@@ -10,18 +10,18 @@ Usage:
   $0 <command> [options]
 
   Commands:
-    register) [DEPRECATED] register an identity in the v1 identity service
-    lookup) [DEPRECATED] lookup an identity in the v1 identity service
-    encode) encode an identity using V2 identity service
-    decode) decode an identity using the V2 identity service
+    register          [DEPRECATED] register an identity in the v1 identity service
+    lookup            [DEPRECATED] lookup an identity in the v1 identity service
+    encode            encode an identity using V2 identity service
+    decode            decode an identity using the V2 identity service
 
   Options:
-    --debug) Turn on debug logging
-    -i|--id) the identity to register or lookup
-    -r|--resource) the resource the identity belongs to
-    -s|--system) the system the identity belongs to
-    -p|--password) the password for the encoding/decoding using ids V2
-    -h|--help) display usage information
+    --debug           Turn on debug logging
+    -i|--id           the identity to register or lookup
+    -r|--resource     the resource the identity belongs to
+    -s|--system       the system the identity belongs to
+    -p|--password     the password for the encoding/decoding using ids V2
+    -h|--help         display usage information
 
   Example(s):
     lookup --id 1010101010V666666
@@ -103,8 +103,10 @@ lookupIdentity() {
 versionTwoIds() {
   local ids=$(readlink -f $(find ${SHANKTOPUS_WORKSPACE} -name health-apis-ids))
   local dq=$(readlink -f $(find ${SHANKTOPUS_WORKSPACE} -name health-apis-data-query))
+  local mapping=$(find $dq -name "data-query-ids-mapping-*.jar" | head -1)
+  echo "Using IDS Mapping: ${mapping}"
   $ids/ids-client/encoded-id \
-    -m $(find $dq -name "data-query-ids-mapping-*.jar" | head -1) \
+    -m ${mapping} \
     $@
 }
 

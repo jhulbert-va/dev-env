@@ -3,9 +3,22 @@
 # Create PR's and link the VAJira Tasks
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
-local currentBranch="$(git branch | grep '*' | awk '{ print $2 }')"
-local task=$(echo "${currentBranch}" | sed 's/.*\(API-[0-9]*\).*/\1/')
+main() {
+  local ghOptions=""
+  if [ "${1:-}" == "draft" ]; then ghOptions+="--draft"; shift; fi
+  local currentBranch="$(git branch | grep '*' | awk '{ print $2 }')"
+  local task=$(echo "${currentBranch}" | sed 's/.*\(API-[0-9]*\).*/\1/')
+  local body=$(mktemp)
 
-gh pr create \
-  -t "${currentBranch}" \
-  -b "# [${task}](https://vajira.max.gov/browse/${task})\n$@"
+  cat >> ${body} <<EOF
+# [${task}](https://vajira.max.gov/browse/${task})
+$@
+EOF
+
+  gh pr create \
+    ${ghOptions} \
+    -t "${currentBranch}" \
+    -b "$(cat ${body})"
+}
+
+main $@
