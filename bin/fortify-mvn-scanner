@@ -1,106 +1,176 @@
 #!/usr/bin/env bash
-
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 set -e
 
+WORKING_DIR=$(pwd)
 NOW=$(date -u +%Y%m%d%H%M)
-APP_DIR=$(pwd)
+JAVA_VERSION="14"
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 usage() {
   cat <<EOF
 $1
+
   Usage:
-    WARNING: In order for scanner to work, you must be in the root directory of the project being scanned.
-
     Options:
-      -h|--help
-      -b                        Name of the build
-      --exclude-directories     Directories within the project that should be omitted from the scan. Semicolon (;) separated.
-      --exclude-modules         Project modules that should be omitted from the scan. Semicolon (;) separated.
+      --debug               Turn on fortify debug logging
+                            (NOTE: This does not turn on debug ouput for the script itself, just fortify)
+      -h|--help             Usage Information
+      -b                    The build name for the scan
+      --exclude-dirs        Semicolon (;) separated list of directories to exclude from the scan
+      --exclude-modules     Semicolon (;) separated list of modules to exclude from the scan
+      -v|--verbose          Turn on verbose scan output
+    Example:
+      $0 -b fortify2020 --exclude-dirs /src/test;/target --exclude-modules moduleOne;moduleTwo
 
-    Examples:
-      $0 -b myExampleBuild 
 EOF
 exit 1
 }
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
-# ==================================================
+main() {
+  ARGS=$(getopt -n $(basename ${0}) \
+      -l "debug,help,exclude-dirs:,exclude-modules:,verbose" \
+      -o "hvb:" -- "$@")
+  [ $? != 0 ] && usage
+  eval set -- "$ARGS"
+  while true
+  do
+    case "$1" in
+      --debug) DEBUG=true;;
+      -v|--verbose) VERBOSE=true;;
+      -h|--help) usage "I cant even with this...";;
+      -b) BUILD_ID="$2";;
+      --exclude-dirs) EXCLUDES=($(echo $2 | tr ';' ' '));;
+      --exclude-modules) EXMODULES=($(echo $2 | tr ';' ' '));;
+      --) shift;break;;
+    esac
+    shift;
+  done
 
-ARGS=$(getopt -n $(basename ${0}) \
-    -l "debug,help,exclude-directories:,exclude-modules:" \
-    -o "hb:" -- "$@")
-[ $? != 0 ] && usage
-eval set -- "$ARGS"
-while true
-do
-  case "$1" in
-    -h|--help) usage "I cant even with this...";;
-    -b) BUILD_NAME="$2";;
-    --exclude-directories) EXCLUDES="$2";;
-    --exclude-modules) BAD_MODULES="$2";;
-    --) shift;break;;
-  esac
-  shift;
-done
+  [ ! -f pom.xml ] && echo "Wait... this isnt a maven project..." && exit 1
 
-# ==================================================
+  [ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
 
-[ -z "${BUILD_NAME:-}" ] && usage "Missing required param: -b"
+  FILENAME="$BUILD_ID-fortify-$NOW"
 
-OUTPUT_FILE="$BUILD_NAME-$NOW"
+  updateFortifyRulepacks
 
-clean() {
-  echo -e "\nCleaning Build: $BUILD_NAME"
-  sourceanalyzer -b "$BUILD_NAME" -clean
+  cleanFortifyBuild
+
+  packageProject
+
+  EXCLUSIONS=()
+  translateFiles
+
+  scanFortifyBuild
+
 }
 
-findIgnoreModules() {
-  if [ -n "${BAD_MODULES:-}" ]; then
-    echo "$(echo ${BAD_MODULES} | tr ';' ' ')"
-  else
-    echo
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+exclude() {
+  echo "Excluding Directory: $1"
+  EXCLUSIONS+=("-exclude $1")
+}
+
+updateFortifyRulepacks() {
+  echo "Updating Rulepacks..."
+  if ! fortifyupdate; then
+    echo "Couldnt update rulepacks... Continuing..."
   fi
 }
 
-build(){
-  echo -e "\nBuilding and compiling for fortify scanning..."
-  fortifyExcludes=""
-  [ -n "$EXCLUDES" ] && fortifyExcludes+="$EXCLUDES"
-  echo "Excluding Directories: $fortifyExcludes"
+cleanFortifyBuild() {
+  echo -e "\nCleaning Previous Build Artifacts..."
+  sourceanalyzer -b $BUILD_ID -clean
+}
 
-  local mvnModuleExclude=()
-  for module in $(findIgnoreModules); do
-    [ -z $module ] && continue
-    echo "Excluding Module: $module"
-    mvnModuleExclude+=("-pl !$module")
+packageProject() {
+  echo -e "\nPackaging Artifacts..."
+
+  local projects=()
+  for module in ${EXMODULES[@]}; do
+    projects+=("-pl !$module")
   done
 
-  sourceanalyzer \
-    -b "$BUILD_NAME" \
-    -debug -logfile $APP_DIR/$OUTPUT_FILE-build.log \
-    mvn ${mvnModuleExclude[@]} clean package \
+  mvn clean package \
+    -f $WORKING_DIR/pom.xml \
+    ${projects[@]} \
+    -P"!standard" \
     -DskipTests \
     -Djacoco.skip \
     -Dcheckstyle.skip \
-    -Dspotbugs.skip \
-    -Dfortify.sca.source.version=12 \
-    -Dfortify.sca.exclude="$fortifyExcludes"
+    -Dspotbugs.skip
 }
 
-scan() {
-  echo -e "\nScanning to file $OUTPUT_FILE.fpr..."
-  sourceanalyzer -b "$BUILD_NAME" \
-    -debug -logfile $APP_DIR/$OUTPUT_FILE-scan.log \
-    -scan -f "$APP_DIR/$OUTPUT_FILE.fpr"
-  echo "Saving logs to $APP_DIR/$OUTPUT_FILE-scan.log..."
+translateFiles() {
+  echo -e "\nTranslating Files..."
+
+  local classpath=()
+
+  PROJECT_MODULES=($(cat pom.xml | grep '<module>' | sed 's/.*module>\(.*\)<.*/\1/'))
+  echo -e "\nFound Project Modules: ${PROJECT_MODULES[@]}"
+  echo "Excluding Modules: ${EXMODULES[@]}"
+
+  [ -d '.idea' ] && exclude "$WORKING_DIR/.idea"
+  [ -d 'target' ] && exclude "$WORKING_DIR/target"
+
+  for module in ${EXMODULES[@]}; do
+    exclude "$WORKING_DIR/$module"
+    PROJECT_MODULES=(${PROJECT_MODULES[@]/$module})
+  done
+
+  for module in ${PROJECT_MODULES[@]}; do
+    for ex in ${EXCLUDES[@]}; do
+      [[ "$ex" =~ ^/.* ]] && ex=${ex:1}
+      exclude "$WORKING_DIR/$module/$ex"
+    done
+    classpath+=("-cp $WORKING_DIR/$module/target")
+  done
+
+  local fortifyOptions
+  if [ "${DEBUG:-false}" == "true" ]; then
+    local logfile="$FILENAME-build.log"
+    echo -e "\nSaving logfile: $logfile"
+    fortifyOptions+="-debug -logfile $logfile"
+  fi
+  if [ "${VERBOSE:-false}" == "true" ]
+  then
+    fortifyOptions+="-verbose"
+  fi
+
+  sourceanalyzer -b $BUILD_ID \
+    -source ${JAVA_VERSION} \
+    ${fortifyOptions:-} \
+    ${classpath[@]} \
+    ${EXCLUSIONS[@]} \
+    $WORKING_DIR
 }
 
-command -v fortifyupdate \
-  && fortifyupdate \
-  || echo "Can't find command: fortifyupdate... Assuming rulepacks are already up to date..."
+scanFortifyBuild() {
+  local fpr="$FILENAME.fpr"
+  echo -e "\nStarting Scan..."
+  echo "Saving file ($fpr)..."
 
-clean
-echo "====="
-build
-echo "====="
-scan
-echo "====="
+  local fortifyOptions
+  if [ "${DEBUG:-false}" == "true" ]; then
+    local logfile="$FILENAME-scan.log"
+    echo "Saving logfile: $logfile"
+    fortifyOptions+="-debug -logfile $logfile"
+  fi
+  if [ "${VERBOSE:-false}" == "true" ]
+  then
+    fortifyOptions+="-verbose"
+  fi
+
+  sourceanalyzer -b $BUILD_ID \
+    ${fortifyOptions:-} \
+    -scan \
+    -f $fpr
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+
+main $@
