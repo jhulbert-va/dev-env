@@ -69,7 +69,7 @@ main() {
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 exclude() {
-  echo "Exclude: $1"
+  echo "Excluding Directory: $1"
   EXCLUSIONS+=("-exclude $1")
 }
 
@@ -109,6 +109,7 @@ translateFiles() {
 
   PROJECT_MODULES=($(cat pom.xml | grep '<module>' | sed 's/.*module>\(.*\)<.*/\1/'))
   echo -e "\nFound Project Modules: ${PROJECT_MODULES[@]}"
+  echo "Excluding Modules: ${EXMODULES[@]}"
 
   [ -d '.idea' ] && exclude "$WORKING_DIR/.idea"
   [ -d 'target' ] && exclude "$WORKING_DIR/target"
