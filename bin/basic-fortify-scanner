@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 set -e
 
 WORKING_DIR=$(pwd)
 NOW=$(date -u +%Y%m%d%H%M)
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 usage() {
   cat <<EOF
@@ -16,35 +18,55 @@ $1
       -b                    The build name for the scan
       --exclude-dirs        Semicolon (;) separated list of directories to exclude from the scan
       --exclude-modules     Semicolon (;) separated list of modules to exclude from the scan
-
+      -v|--verbose          Turn on verbose scan output
     Example:
       $0 -b fortify2020 --exclude-dirs /src/test;/target --exclude-modules moduleOne;moduleTwo
 
 EOF
 exit 1
 }
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
-# ==================================================
+main() {
+  ARGS=$(getopt -n $(basename ${0}) \
+      -l "debug,help,exclude-dirs:,exclude-modules:,verbose" \
+      -o "hvb:" -- "$@")
+  [ $? != 0 ] && usage
+  eval set -- "$ARGS"
+  while true
+  do
+    case "$1" in
+      --debug) DEBUG=true;;
+      -v|--verbose) VERBOSE=true;;
+      -h|--help) usage "I cant even with this...";;
+      -b) BUILD_ID="$2";;
+      --exclude-dirs) EXCLUDES=($(echo $2 | tr ';' ' '));;
+      --exclude-modules) EXMODULES=($(echo $2 | tr ';' ' '));;
+      --) shift;break;;
+    esac
+    shift;
+  done
 
-ARGS=$(getopt -n $(basename ${0}) \
-    -l "debug,help,exclude-dirs:,exclude-modules:" \
-    -o "hb:" -- "$@")
-[ $? != 0 ] && usage
-eval set -- "$ARGS"
-while true
-do
-  case "$1" in
-    --debug) DEBUG=true;;
-    -h|--help) usage "I cant even with this...";;
-    -b) BUILD_ID="$2";;
-    --exclude-dirs) EXCLUDES=($(echo $2 | tr ';' ' '));;
-    --exclude-modules) EXMODULES=($(echo $2 | tr ';' ' '));;
-    --) shift;break;;
-  esac
-  shift;
-done
+  [ ! -f pom.xml ] && echo "Wait... this isnt a maven project..." && exit 1
 
-# ==================================================
+  [ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
+
+  FILENAME="$BUILD_ID-fortify-$NOW"
+
+  updateFortifyRulepacks
+
+  cleanFortifyBuild
+
+  packageProject
+
+  EXCLUSIONS=()
+  translateFiles
+
+  scanFortifyBuild
+
+}
+
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 exclude() {
   echo "Exclude: $1"
@@ -135,21 +157,6 @@ scanFortifyBuild() {
     -f $fpr
 }
 
-# ==================================================
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
-[ ! -f pom.xml ] && echo "Wait... this isnt a maven project..." && exit 1
-
-[ -z "$BUILD_ID" ] && usage "Missing required parameter: -b"
-
-FILENAME="$BUILD_ID-fortify-$NOW"
-
-updateFortifyRulepacks
-
-cleanFortifyBuild
-
-packageProject
-
-EXCLUSIONS=()
-translateFiles
-
-scanFortifyBuild
+main $@
