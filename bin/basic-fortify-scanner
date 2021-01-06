@@ -98,6 +98,7 @@ packageProject() {
   mvn clean package \
     -f $WORKING_DIR/pom.xml \
     ${projects[@]} \
+    -P"!standard" \
     -DskipTests \
     -Djacoco.skip \
     -Dcheckstyle.skip \
