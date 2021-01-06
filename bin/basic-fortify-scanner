@@ -4,12 +4,14 @@ set -e
 
 WORKING_DIR=$(pwd)
 NOW=$(date -u +%Y%m%d%H%M)
+JAVA_VERSION="14"
 
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 
 usage() {
   cat <<EOF
 $1
+
   Usage:
     Options:
       --debug               Turn on fortify debug logging
@@ -127,15 +129,20 @@ translateFiles() {
     classpath+=("-cp $WORKING_DIR/$module/target")
   done
 
+  local fortifyOptions
   if [ "${DEBUG:-false}" == "true" ]; then
     local logfile="$FILENAME-build.log"
     echo -e "\nSaving logfile: $logfile"
-    local debugOp="-debug -logfile $logfile"
+    fortifyOptions+="-debug -logfile $logfile"
+  fi
+  if [ "${VERBOSE:-false}" == "true" ]
+  then
+    fortifyOptions+="-verbose"
   fi
 
   sourceanalyzer -b $BUILD_ID \
-    -source 12 \
-    ${debugOp:-} \
+    -source ${JAVA_VERSION} \
+    ${fortifyOptions:-} \
     ${classpath[@]} \
     ${EXCLUSIONS[@]} \
     $WORKING_DIR
@@ -146,14 +153,19 @@ scanFortifyBuild() {
   echo -e "\nStarting Scan..."
   echo "Saving file ($fpr)..."
 
+  local fortifyOptions
   if [ "${DEBUG:-false}" == "true" ]; then
     local logfile="$FILENAME-scan.log"
     echo "Saving logfile: $logfile"
-    local debugOp="-debug -logfile $logfile"
+    fortifyOptions+="-debug -logfile $logfile"
+  fi
+  if [ "${VERBOSE:-false}" == "true" ]
+  then
+    fortifyOptions+="-verbose"
   fi
 
   sourceanalyzer -b $BUILD_ID \
-    ${debugOp:-} \
+    ${fortifyOptions:-} \
     -scan \
     -f $fpr
 }
