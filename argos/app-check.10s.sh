@@ -1,45 +1,33 @@
 #!/usr/bin/env bash
 
 APP_INFO=$(mktemp "/tmp/app-check.argosXXX")
-APP=$(find ~ -name "bulk-fhir")
-DEV_APP=$(readlink -f "$APP/run-local.sh")
 
-onExit() { rm $APP_INFO; }
-trap onExit EXIT
+trap "rm ${APP_INFO}" EXIT
 
-javaApp() {
-  local app=$1
-  local short=$2  
-  local pid=$3
-  [ -z "$pid" ] && return
-  echo -e "$app ($pid)\n--stop | bash='$DEV_APP' param1='--$short' param2='stop' terminal=false" >> $APP_INFO
+dockerContainers() {
+  local containerId
+  for container in $(docker ps --format "{{.Names}}({{.ID}})")
+  do
+    containerId=$(echo ${container} | sed 's/.*(\(.*\))/\1/')
+    echo -e "${container}\n--stop | bash='docker stop ${containerId}' terminal=false" >> $APP_INFO
+  done
 }
 
-dockerContainer() {
-  local name=$1
-  local container=$2
-  [ -z "$container" ] && return
-  echo -e "$name ($container)\n--stop | bash='docker stop $container' terminal=false" >> $APP_INFO
+javaApplications() {
+  local appPid
+  for app in $(jps -v | awk '/-Dapp\.name=/ {print $1" "$3}' | sed 's/\([0-9]*\) -Dapp\.name=\(.*\)/\2(\1)/')
+  do
+    appPid=$(echo ${app} | sed 's/.*(\(.*\))/\1/')
+    echo -e "${app}\n--stop | bash='kill ${appPid}' terminal=false" >> $APP_INFO
+  done
 }
 
-# Bulk-Fhir
-javaApp "bulk" b $(lsof -ti tcp:8091 -s tcp:listen)
-# Data-Query
-dockerContainer "dqdb" $(docker ps -q -f name=dqdb)
-javaApp "data-query" d $(lsof -ti tcp:8090 -s tcp:listen)
-# Facilities
-dockerContainer "facilities-cdw-db" $(docker ps -q -f name='facilities-cdw-db')
-javaApp "facilities" f $(lsof -ti tcp:8085 -s tcp:listen)
-javaApp "facilities-collector" c $(lsof -ti tcp:8080 -s tcp:listen)
-javaApp "facilities-mock-services" m $(lsof -ti tcp:8666 -s tcp:listen)
-# Fall-Risk
-javaApp "fall-risk" "NOPE" $(lsof -ti tcp:8070 -s tcp:listen)
-# Kong
-dockerContainer "kong" $(docker ps -f publish=8443/tcp -q)
+dockerContainers
+javaApplications
 
-[ "$(wc -l $APP_INFO | cut -d ' ' -f1)" == "0" ] && echo "-|trim=false" && exit 0
+[ "$(wc -l ${APP_INFO} | cut -d ' ' -f1)" == "0" ] && echo "-|trim=false" && exit 0
 
-echo ":rainbow:"
+echo ":rocket:"
 echo "---"
 cat $APP_INFO
 
