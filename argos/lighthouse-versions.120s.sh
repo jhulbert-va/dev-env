@@ -12,9 +12,6 @@ trap onExit EXIT
 
 deployed-versions \
   -a data-query \
-  -a insurance \
-  -a scheduling \
-  -a vistalink \
   >> $VERSIONS
 
 FAIL_COUNT=$(awk '/^[a-z-]*:.*/ {print $0}' $VERSIONS \
