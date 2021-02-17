@@ -11,12 +11,6 @@ main() {
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 
-deployer-toolkit() {
-  local deployer=$(find ~/va -name 'health-apis-deployer')
-  local toolkitScript="${deployer}/toolkit/dtk"
-  echo "${toolkitScript}"
-}
-
 dev-env() {
   # Source .bash_secrets when exists
   if [ -f ~/.bash_secrets ]
@@ -55,8 +49,8 @@ maven-alias() {
 }
 
 misc() {
-  alias du-decrypt='$(deployer-toolkit) decrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
-  alias du-encrypt='$(deployer-toolkit) encrypt --encryption-passphrase $DU_ENCRYPTION_KEY'
+  alias du-decrypt="dtk2 -e $DU_ENCRYPTION_KEY decrypt"
+  alias du-encrypt='dtk2 -e $DU_ENCRYPTION_KEY encrypt'
   alias cd..='cd ..'
   alias e='emacs -nw'
   alias github='ssh-add ~/.ssh/github'
